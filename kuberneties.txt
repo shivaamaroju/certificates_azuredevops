@@ -1,0 +1,1461 @@
+Idhi oka Open Source Orchestration System. Ante simple ga cheppali ante, vandala Docker containers ni automate chesi manage chese oka "Manager" lantidi.
+
+Scheduling: Containers ni cluster lo unna machines (Nodes) meeda ekkada run cheyalo decide chestundi.
+
+Auto-Healing: Edaina container crash ayithe, Kubernetes ventane daanni malli restart chestundi.
+
+Maintenance: Oka machine (node) ki repair avasaram ayithe, akkada unna containers ni vere machines loki shift chestundi.
+
+Scalability: 1 node nundi thousands of nodes varaku manage cheyagalaru.
+
+
+
+VM vs Containers (Main Difference)
+Virtual Machine: Idhi chala heavy. Indulo prati VM ki oka separate Guest OS untundi. Boot avvadaniki konni nimishalu padutundi (GBs lo untundi).
+
+Container: Idhi chala lightweight (MBs lo untundi). Indulo Guest OS undadu, Host OS yokka Kernel ne share cheskuntundi. Edi ventane (instantly) start avtund
+
+
+Kops (Kubernetes Operations)
+
+
+
+Container build చేయాలంటే Dockerfile ఉండాలి. అందులో ముఖ్యమైన lines ఇవి:
+
+FROM: బేస్ ఇమేజ్ (ఉదాహరణకి node:18).
+
+WORKDIR: కంటైనర్ లోపల ఏ ఫోల్డర్ లో పని జరగాలి (/app).
+
+COPY: మన లాప్ టాప్ లో ఉన్న కోడ్ ని కంటైనర్ లోకి పంపడం.
+
+RUN: ఇమేజ్ బిల్డ్ అయ్యేటప్పుడు ఎగ్జిక్యూట్ అయ్యే కమాండ్స్ (ఉదా: npm install).
+
+EXPOSE: ఏ పోర్ట్ లో యాప్ రన్ అవుతుంది (ఉదా: 3000).
+
+CMD: కంటైనర్ స్టార్ట్ అయినప్పుడు రన్ అవ్వాల్సిన మెయిన్ కమాండ్ (npm start).
+
+
+
+
+
+Kubernetes lo unit of deployment ante Pod.
+
+
+
+Kubernetes lo unit of deployment ante Pod.
+
+Container ni direct ga run cheyam, daanni oka "Pod" ane cover lo petti run చేస్తాం.
+
+Oka Pod lo okkati kante ekkuva containers kuda undochu (vaatini sidecars antaru), kani general ga okka container eh untundi.
+
+Pod lo unna containers anni oke IP address share cheskuntayi.
+
+
+
+
+
+
+
+Command,Purpose
+kubectl apply -f file.yaml,YAML file ni chusi Pod ni create chestundi.
+kubectl get pods,Enni pods run avthunnayo list isthundi.
+kubectl describe pod <name>,Pod enduku run avvatledo (errors) telusukovadaniki full details isthundi.
+kubectl logs <name>,App lo vache messages (console logs) chudochu.
+kubectl exec -it <name> -- sh,Pod loiki login ayyi command kottadaniki (Linux lo SSH unnattu).
+
+
+
+
+
+Interview lo "Pod ki Service కి తేడా ఏంటి?" అని అడుగుతారు.
+
+Pod: ఇది యాప్ రన్ అయ్యే చోటు (ఇది చనిపోతే IP మారిపోతుంది).
+
+Service: ఇది Pod కి ముందు ఉండే ఒక "Gate". Pod చనిపోయి కొత్తది వచ్చినా, Service IP మారదు.
+
+
+
+. Service Ante Enti? (The Concept)
+Kubernetes lo Pods permanent kaadu (avi eppudaina chachipovachu). Pods ki stable IP address undadu. Kabatti, mana app ni internet ki connect cheయడానికి ఒక Service ని వాడుతాం. Service కి ఒక స్థిరమైన IP ఉంటుంది.
+
+
+
+
+
+
+1. Node Components (Prati machine lo emuntayi?)
+Oka Kubernetes Node (Worker Machine) lo mukhymaina elements ivi:
+
+Docker: Containers ni run cheyadaniki idi engine.
+
+Kubelet: Idi node ki "Manager" lantidi. Master Node cheppe order ni vini, Pods ni launch chestundi.
+
+Kube-proxy: Idi network manager. Pods ki IP addresses ivvadam, traffic ni route cheyadam (iptables vaadi) deeni pani.
+
+Iptables: Linux lo unde firewall/routing rules. Kube-proxy deenini update chesthu untundi, anduke traffic correct Pod ki veltundi.
+
+2. Pods & Containers (Internal Logic)
+Multi-Container Pods: Oka Pod lo okkati kante ekkuva containers (Red blocks) undochu. Avi okari tho okaru localhost mariyu port number tho chala fast ga matladukogalavu.
+
+Inter-Pod Communication: Oka Pod nundi inkoka Pod ki (vere Node lo unna kuda) network dwara connection untundi. Deenine "Service Discovery" antaru.
+
+3. Traffic Flow (Internet nundi Pod varaku)
+Internet nundi request vachinappudu route ela untundo chudu:
+
+Load Balancer (ELB/Azure LB): First request ikkadiki ostundi.
+
+Node Port: Load Balancer nundi request nodes ki oka static port dwara veltundi.
+
+Iptables: Node ki request reach avvagane, iptables rules ni chusi, aa request ఏ Pod/Container ki vellalo decide chestundi.
+
+Pod/Container: Final ga mana app response isthundi.
+
+4. YAML vs Architecture Diagram
+Nuvvu rase YAML file ki diagram ki link idi:
+
+Spec Section: YAML lo spec: kinda nuvvu rase contents anni Diagram lo unna Red blocks (Containers).
+
+Metadata Section: Pod peru, labels anni ఆ Green block (Pod) ki sanbandhinchinavi.
+
+
+
+
+
+
+
+Vertical Scaling: ఉన్న ఒక్క Pod కే ఎక్కువ RAM, CPU ఇవ్వడం.
+
+Horizontal Scaling: ఒకే యాప్ ని 2, 5, లేదా 10 కాపీలుగా (Replicas) రన్ చేయడం.
+
+
+
+
+
+
+3. Replication Controller (RC)
+ఇది ఒక "Watchman" లాంటిది. నువ్వు "నాకు 5 కాపీలు కావాలి" అని చెబితే, అది ఎప్పుడూ 5 రన్ అయ్యేలా చూస్తుంది.
+
+ఒకవేళ ఒక Pod క్రాష్ అయితే, RC వెంటనే ఇంకో కొత్త Pod ని క్రియేట్ చేస్తుంది.
+
+ఒకవేళ నువ్వు పొరపాటున ఒక Pod ని డిలీట్ చేసినా, RC దాన్ని మళ్ళీ పుట్టిస్తుంది.
+
+
+
+
+
+RS anedi RC ki advanced version.
+
+RC lo kevalam env = dev lanti simple matching matrame cheyagalam.
+
+RS lo inka complex matching (Set-based selectors) cheyochu (e.g., env is either dev or qa).
+
+Note: Manam direct ga RS ni kuda vaadam, Deployment automatic ga RS ni create chestu
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+1. The Control Plane (Master Node) - "The Control Ships"
+క్లస్టర్ కి ఇది "మెదడు" (Brain) లాంటిది. ఇందులో ఉండే ముఖ్యమైన భాగాలు:
+
+ETCD (The Database): క్లస్టర్ కి సంబంధించిన ప్రతి చిన్న విషయం (ఏ షిప్ లో ఏ కంటైనర్ ఉంది?) ఇందులో స్టోర్ అవుతుంది. ఇది ఒక Key-Value Store.
+
+Kube-Scheduler (The Crane): కొత్త కంటైనర్ రాగానే, అది ఏ నోడ్ (షిప్) లోకి వెళ్లాలో ఇది డిసైడ్ చేస్తుంది. నోడ్ యొక్క కెపాసిటీని బట్టి ప్లాన్ చేస్తుంది.
+
+Controller Manager (The Offices): క్లస్టర్ లో అన్నీ సరిగ్గా ఉన్నాయో లేదో చూస్తుంది.
+
+Node Controller: ఏదైనా నోడ్ డౌన్ అయితే చూసుకుంటుంది.
+
+Replication Controller: మనం అడిగినన్ని కంటైనర్లు రన్ అవుతున్నాయో లేదో చెక్ చేస్తుంది.
+
+Kube-API Server (The Manager): అందరూ దీని ద్వారానే మాట్లాడుకోవాలి. మనం కొట్టే kubectl కమాండ్స్ అన్నీ ఫస్ట్ దీనికే వెళ్తాయి. ఇది అందరినీ మేనేజ్ చేసే మెయిన్ గేట్.
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+OCI (Open Container Initiative): Image ela undali, Container ela rన్ avvali ane rules (Standards). Docker images OCI ni follow avthayi kabatti, manam old Docker images ni ippudu kuda Containerd lo vaadochu.
+
+CRI (Container Runtime Interface): Kubernetes ki ey container engine (Containerd, Rocket, CRI-O) ayina connect avvadaniki unde oka common socket/interface.
+
+
+
+
+Feature,SQL (Tabular),Document (JSON),Key-Value (ETCD)
+Structure,Strict Rows/Columns,Flexible Documents,Super Simple Pairs
+Complexity,High (Complex Queries),Medium,Low
+Speed,Medium,Fast,Super Fast (Lookups)
+Best for,Structured Data,Semi-structured,Quick Lookups/State Storage.
+
+
+
+
+
+
+
+
+
+
+Interview lo "Why does Kubernetes use ETCD?" ani adigithe: "Because Kubernetes needs a fast, distributed, and reliable way to store the entire cluster's state (nodes, pods, secrets, configs). ETCD is perfect for this because of its simple key-value structure and high performance," ani cheppu.
+
+
+
+
+
+Chala mandi confuse avtharu, kaani nuvvu gurthu pettuko:
+
+Scheduler: కేవలం "డిసైడ్" మాత్రమే చేస్తుంది (Decision maker). ఇది Pod ని నోడ్ మీదకి పంపదు.
+
+Kubelet: ఇది అసలైన "Worker". Scheduler చెప్పిన మాట విని, నోడ్ మీద Pod ని క్రియేట్ చేసేది Kubelet మాత్రమే.
+
+
+
+
+
+1. Kubelet: The Captain's Duties
+Worker node lo Kubelet lekapothe, aa node ki Kubernetes cluster tho sambandham cut ayipothundi.
+
+Registration: Kothaga oka worker node ni cluster loki add cheyali ante, aa node lo unna Kubelet velli API Server కి "నన్ను కూడా మీ గ్రూప్‌లో చేర్చుకోండి" అని రిపోర్ట్ చేయాలి.
+
+Pod Creation: Scheduler ఒక Pod ని ఈ నోడ్‌కి కేటాయించగానే, Kubelet ఆ ఆర్డర్‌ని తీసుకుంటుంది. వెంటనే Container Runtime (Docker/Containerd) ని అడిగి, కావాల్సిన ఇమేజ్‌ని పుల్ చేయించి, కంటైనర్‌ని రన్ చేస్తుంది.
+
+Health Monitoring: కంటైనర్ రన్ అవుతుందా? లేదా క్రాష్ అయిందా? అని నిరంతరం గమనిస్తూ, ఆ రిపోర్ట్ ని API Server కి పంపిస్తుంది.
+
+Resource Reporting: నోడ్ లో ఎంత CPU, RAM ఖాళీగా ఉందో మాస్టర్ కి అప్‌డేట్ చేస్తుంది.
+
+
+
+
+Pods okari tho okaru matladukovడానికి Pod Network (Virtual Network) ఉన్నా, అసలైన మేజిక్ Services దగ్గర జరుగుతుంది. ఆ సర్వీస్ ఐపీ (Service IP) ని Pod ఐపీగా మార్చే బాధ్యత Kube-Proxy ది.
+
+
+
+
+
+
+
+Field,Purpose,Example for Pod
+apiVersion,Kubernetes API tho matladadaniki version.,v1
+kind,Nuvvu em create chestunnav?,Pod
+metadata,"Pod peru, labels lanti details (Data about data).",name: myapp-pod
+spec,Asalu katha ikkade! Indulo container details untayi.,containers: ...
+
+
+
+
+
+
+
+
+
+Kubernetes lo objects ee order lo pani chestayi:
+
+Deployment (The Boss): Idi motham strategy ni manage chestundi.
+
+ReplicaSet (The Manager): Deployment oka ReplicaSet ni create chestundi. Idi Pods count ni chustundi.
+
+Pod (The Worker): ReplicaSet vachaka avi Pods ni create chestayi.
+
+
+AML ఫైల్ రాయకుండా డైరెక్ట్ గా ఆబ్జెక్ట్స్ ని క్రియేట్ చేయడం:
+
+Quick Pod: kubectl run nginx --image=nginx
+
+Quick Deployment: kubectl create deployment my-deploy --image=nginx --replicas=3
+
+
+. NodePort: Deep Dive (Logic with Ports)
+NodePort lo 3 ports chala important, avi confuse avvakunda ikkada chudu:
+
+NodePort (30000-32767): Bayati user browser lo kotte port (e.g., 30008).
+
+Port: Service object yokka port.
+
+TargetPort: Pod lopala application run ayye port (e.g., 80).
+
+
+
+Interview lo "Service కి Pods ఎలా తెలుస్తాయి?" అని అడిగితే:
+
+"Using Labels and Selectors. Service selectors match with Pod labels to identify target endpoints," అని చెప్పు.
+
+
+
+
+
+Interview lo "ClusterIP ni bayati prapancham nundi (Internet) access cheyacha?" ani adugutharu.
+
+Answer: "No." ClusterIP kevalam Cluster లోపల ఉన్న వేరే Pods కి మాత్రమే కనిపిస్తుంది. బయటి వాళ్ళ కోసం మనం NodePort లేదా LoadBalancer వాడాలి.
+
+
+namespace ante office lo unna oka "Separate Room" or "Partition" lantidi.
+
+Building: Idhi motham Kubernetes Cluster.
+
+Rooms: Ivve Namespaces.
+
+Employees: Veere Pods.
+
+
+
+
+
+
+
+నువ్వు ఒక కొత్త పాడ్ ని క్రియేట్ చేసేటప్పుడు అది ఏ రూమ్ లోకి వెళ్ళాలో నువ్వే చెప్పాలి:
+
+Bash
+kubectl run redis --image=redis -n finance
+ఒకవేళ నువ్వు -n finance అని ఇవ్వకపోతే, అది ఆటోమేటిక్ గా default నేమ్ స్పేస్ లోకి వెళ్ళిపోతుంది.
+
+
+
+
+
+DNS: The House Address System
+ఇది చాలా ఇంపార్టెంట్ పాయింట్, జాగ్రత్తగా విను:
+
+Same Namespace (Intra-communication): ఒకే నేమ్ స్పేస్ లో ఉన్న అప్లికేషన్లు ఒకరిని ఒకరు కేవలం పేరుతో పిలుచుకోవచ్చు. (e.g., curl db-service).
+
+Different Namespace (Inter-communication): వేరే నేమ్ స్పేస్ లో ఉన్న సర్వీస్ ని పిలవాలంటే, పూర్తి అడ్రస్ ఇవ్వాలి.
+
+Full Address Format: service-name.namespace.svc.cluster.local
+
+ఉదాహరణకి: db-service.dev.svc.cluster.local
+
+
+
+
+4. Shortcuts for the Examల్యాబ్ లో ఇన్స్ట్రక్టర్ వాడిన షార్ట్ కట్స్ నీకు టైమ్ సేవ్ చేస్తాయి:ns $\rightarrow$ namespace-n $\rightarrow$ --namespace-A $\rightarrow$ --all-namespaces.
+
+
+
+
+
+
+ఇంటర్వ్యూలో "ఒకే పేరుతో రెండు పాడ్స్ ఒకే క్లస్టర్ లో ఉండొచ్చా?" అని అడుగుతారు.
+
+Answer: "అవును, ఉండొచ్చు. కానీ అవి వేర్వేరు నేమ్ స్పేస్ లలో ఉండాలి. ఒకే నేమ్ స్పేస్ లో ఒకే పేరుతో రెండు ఆబ్జెక్ట్స్ ఉండలేవు.
+
+
+
+
+Imperative (ఆజ్ఞాపించడం): డ్రైవర్ కి "కుడికి వెళ్ళు, ఎడమకి వెళ్ళు" అని స్టెప్-బై-స్టెప్ చెప్పడం.
+
+Declarative (ప్రకటించడం): ఉబెర్ లో డెస్టినేషన్ సెట్ చేసి "నన్ను అక్కడికి తీసుకెళ్ళు" అని చెప్పడం.
+
+
+
+
+1. kubectl api-resources (The Map)
+Cluster lo asalu em em resources unnayi, vaati short names enti ani telusukovadaniki idi vaadataru.
+
+Short Names: pods ni po ani, services ni svc ani pilavachhu.
+
+API Version: Ye resource ye API version (v1 or apps/v1) lo undo ikkadye clear ga untundi.
+
+
+
+
+Oka resource structure ni purthiga artham cheskovadaniki idi vaadutham. Idi documentation page ni terminal loki techinattu untundi.
+
+Top Level: kubectl explain pods (Idhi metadata, spec, status lanti main fields ni chupisthundi).
+
+Deep Dive: kubectl explain pods.spec (Spec lanti sub-field lopala ఏమున్నాయో చూపిస్తుంది).
+
+Specific Field: kubectl explain pods.spec.containers (ఇది కంటైనర్ లోపల మనం ఏమేమి ఫీల్డ్స్ వాడొచ్చో చెబుతుంది.
+
+
+
+
+
+
+1. Real-World Logic (The Filter System)
+Online shopping (Amazon/Flipkart) lo nuvvu "Mobile" ani vethikithe anni mobiles osthayi. Malli "Brand = Samsung" ani filter pedithe kevalam Samsung mobiles osthayi.
+
+Ikkada Labels ante: category: mobile, brand: samsung, color: blue.
+
+Selector ante: Nuvvu pette "Filter" conditions.
+
+2. Labels in Kubernetes (Metadata section)
+Kubernetes lo ye object (Pod, Service, Deployment) ki aina Labels ni metadata section lo pedatham. Nuvvu enni labels aina ivvachu.
+
+YAML
+metadata:
+  name: my-app-pod
+  labels:
+    app: webserver      # Logic: Idhi oka web app
+    tier: frontend      # Logic: Idhi front-end layer
+    env: dev            # Logic: Idhi development environment
+
+
+
+
+
+Labels ni filter cheయడానికి వాడతాం, కానీ Annotations ని కేవలం Information దాచుకోవడానికి వాడతాం.
+
+Examples: Build version, Contact person email, Tool details, etc.
+
+Key Point: Kubernetes system annotations ని వాడి ఏ నిర్ణయం తీసుకోదు (Scheduling కి లేదా Filtering కి వాడదు). ఇవి కేవలం మన కోసం లేదా ఎక్స్టర్నల్ టూల్స్ కోసం మాత్ర
+
+
+
+
+
+
+Taint అంటే నోడ్ మీద మనం వేసే ఒక "నిషిద్ధ" ముద్ర. ఇది నోడ్ మీద ఉంటుంది.
+
+పని: "నేను ఈ కంటెంట్ ఉన్న పాడ్స్ ని నా మీదకి రానివ్వను" అని నోడ్ చెబుతుంది.
+
+Command: kubectl taint nodes node1 key=value:taint-effect
+
+
+
+
+
+2. Tolerations అంటే ఏంటి? (Permission on Pod)
+Toleration అంటే పాడ్ కి ఇచ్చే ఒక "Special Permission". ఇది పాడ్ YAML లో ఉంటుంది.
+
+పని: "నా దగ్గర ఈ స్పెషల్ పాస్ ఉంది, కాబట్టి నోడ్ మీద ఉన్న Taint నన్ను ఆపలేదు" అని పాడ్ చెబుతుంది.
+
+
+
+
+
+Simple ga cheppali ante: Node Selector ante kevalam "Equal to" (size=large) mathrame chustundi. Kaani Node Affinity tho nuvvu "Large OR Medium", "NOT Small", "Exists" lanti complex logic rasi, Kubernetes ni inka smart ga manage cheyochu.
+
+
+
+
+Node Affinity lo manam different operators vadachu:
+
+In: values: ["large", "medium"] (Ante rendu values lo edokati unna sare).
+
+NotIn: "Small" leni nodes ki vellu.
+
+Exists: Value emaina parvaledu, asalu aa "Label" ఉంటే చాలు.
+
+
+
+
+1. Only Taints & Tolerations (The Exclusive Club)
+Em chesthundhi: "Vere evarni raniyyadu" (Nodes ni protect chestundi).
+
+Problem: Mana Pods ni "Kachitanga ikkade kurcho" ani cheppaledu. Mana Pods vere "Un-tainted" nodes (migilina team nodes) meedaki vellipovachu.
+
+2. Only Node Affinity (The Destination Preference)
+Em chesthundhi: Mana Pods ni "Kachitanga ee node ke vellu" ani chepthundi.
+
+Problem: Vere team Pods mana nodes meedaki ravoddhu ani cheppaledu. Ante, mana VIP node meeda vere normal pods vachi kurchovachu.
+
+
+
+
+
+
+
+Cluster lo 10 nodes unte, 10 pods run avthayi. Repu nuvvu kothaga 11th node add chesthe, DaemonSet automatic ga akkada kuda oka pod ni create chestundi. Node ni remove chesthe, pod kuda remove ayipothundi.
+
+
+
+
+
+
+2. Real-world Use Cases (Enduku vaadali?)
+Prathi node meeda kachitanga undalsina "Services" kosam deenni vaadatharu:
+
+Log Collectors: (e.g., Fluentd, Logstash) - Prathi node logs collect cheyali kabatti.
+
+Monitoring Agents: (e.g., Prometheus Node Exporter) - Node health chudali kabatti.
+
+Networking: kube-proxy anedi oka perfect example. Idi prathi node meeda undali.
+
+
+
+
+
+Normal ga Pods ni API Server chepthe Kubelet create chestundi. Kaani Static Pods vishayaniki osthe, Kubelet ki evaru cheppalsina avasaram ledu.
+
+Logic: Node lo oka specific folder untundi. Aa folder lo nuvvu ఒక Pod YAML file pedithe chalu, Kubelet ventane danni detect chesi Pod ni rann chestundi.
+
+Management: Folder nundi file teesthe Pod delete ayipothundi. File lo change chesthe Pod restart avthundi.
+
+
+
+Master node lekapothe Pods enduku?" ani neeku doubt ravachu.
+
+The Master itself is a Static Pod: Kubernetes control plane components (API Server, ETCD, Controller Manager) ni run cheయడానికి Static Pods ని వాడతారు.
+
+Kubelet ni install చేసి, ఈ components YAML ఫైల్స్ ని మేనిఫెస్ట్ ఫోల్డర్ లో పడేస్తే, అవే కంట్రోల్ ప్లేన్ ని నిలబెడతాయి.
+
+
+
+
+Priority Class అంటే ఏంటి? (The Ranking System)
+Idi ఒక Non-Namespaced object. అంటే నువ్వు ఒక్కసారి క్రియేట్ చేస్తే, క్లస్టర్ లో ఉన్న ఏ నేమ్ స్పేస్ లో ఉన్న పాడ్ కైనా దీన్ని వాడుకోవచ్చు.
+
+Value: ఇక్కడ మనం ఒక నంబర్ ఇస్తాం. నంబర్ ఎంత పెద్దదైతే, అంత ఎక్కువ ప్రయారిటీ అన్నమాట.
+
+System Critical: Kubernetes తన సొంత పనుల కోసం (API Server, etc.) ఆల్రెడీ కొన్ని క్లాసెస్ ని 2 బిలియన్ రేంజ్ లో ఉంచుకుంటుంది. మనం ఇచ్చే నంబర్ 1 బిలియన్ లోపు ఉండటం మంచిది.
+
+
+
+2. Preemption అంటే ఏంటి? (The "Kick Out" Policy)
+ఇది చాలా ఇంట్రెస్టింగ్! ఒకవేళ క్లస్టర్ లో చోటు లేనప్పుడు ఒక High Priority Pod వస్తే ఏం జరుగుతుంది?
+
+PreemptLowerPriority (Default): షెడ్యూలర్ వెళ్లి తక్కువ ప్రయారిటీ ఉన్న పాడ్ ని "బయటికి గెంటేసి" (Terminate చేసి), ఆ ప్లేస్ లో హై ప్రయారిటీ పాడ్ ని కూర్చోబెడుతుంది.
+
+PreemptionPolicy: Never: ఒకవేళ నీకు వేరే పాడ్ ని చంపడం ఇష్టం లేకపోతే, దీన్ని 'Never' అని పెట్టుకోవాలి. అప్పుడు నీ పాడ్ క్యూ (Queue) లో ముందు ఉంటుంది కానీ, వేరే వాటిని డిస్టర్బ్ చేయదు. ఖాళీ అయ్యే వరకు వెయిట్ చేస్తుంది.
+
+
+
+Ippati daka manam RBAC (Role Based Access Control) gurinchi matladukunnam. Kaani RBAC kevalam "Evadu em cheyochu?" (Who can do what) ani matrame chepthundi. Admission Controllers inka deep ga velli "Aa request lo emi undi? Adi mana rules ni follow avthunda?" ani check chesthayi.
+
+1. RBAC vs Admission Controllers (Teda enti?)
+Oka example chudu:
+
+RBAC: "Shivateja Pod ni create cheyochu." (Permission granted ✅)
+
+Admission Controller: "Shivateja Pod create chesthunnaadu, kaani andulo image 'Docker Hub' nundi undi. Manam kevalam internal registry images ne allow chestham, so reject chey!" (Rule enforcement ❌).
+
+
+
+
+
+Kubernetes lo default ga "Full-featured" monitoring undadu. Deeni kosam manam Metrics Server ni install cheyali.
+
+In-Memory: Idi metrics ni RAM (memory) lo mathrame dachuntundi. Disk meeda store cheyadhu.
+
+No History: Ante, nuvvu kevalam "Ippudu" (Current status) em jaruguthundo chudagalaవు, నిన్నటి డేటాని చూడలేవు.
+
+Pro-Tip: Nuvvu historical data chudali ante Prometheus leda Grafana lanti advance tools vaadaali.
+
+
+2. CAdvisor: The Silent Agent
+Pod metrics ela vasthayi?
+
+Prathi Node meeda Kubelet rann avthundi kadha? Andulo CAdvisor (Container Advisor) ane oka chinna part untundi.
+
+Idi containers nundi CPU, Memory usage ni collect chesi Metrics Server ki andisthundi.
+
+
+3. Hands-on Commands (Must Remember)
+Nuvvu metrics server install chesaka, ee rendu commands neeku "Veda mantralu" lantivi:
+
+Node Metrics Chudaalante:
+
+Bash
+kubectl top node
+(Idhi ఏ నోడ్ లో ఎంత CPU/Memory వాడుతున్నారో చూపిస్తుంది).
+
+Pod Metrics Chudaalante:
+
+Bash
+kubectl top pod
+(Idhi ఏ పాడ్ ఎంత రిసోర్సెస్ తింటుందో చూపిస్తుంది).
+
+
+
+
+1. Docker vs Kubernetes Logs
+Docker lo manam docker logs <container-id> koddham. Kubernetes lo kuda same logic:
+
+Command: kubectl logs <pod-name>
+
+Live Streaming: Nuvvu logs real-time lo chudali ante -f (follow) flag vaadaali.
+
+kubectl logs -f web-pod.
+
+
+
+3. Advanced Logging (EFK/ELK Stack)
+Instructor cheppinattu, Kubernetes logs ni permanant ga store cheyadhu. Pod delete ayithe logs kuda pothayi. Real-time projects lo (Cognizant lo nuvvu chusthavu), manam EFK Stack vaadatham:
+
+Fluentd: Nodes nundi logs collect chestundi.
+
+Elasticsearch: Logs ni store chestundi.
+
+Kibana: Logs ni graph/table roopam lo chupisthundi.
+
+
+
+
+
+1. Rollout Strategies (The "How")
+Kotha version ni deploy chesetappudu rendu mukhyaమైన దారులు ఉన్నాయి:
+
+Recreate Strategy: Patha pods anni okesari delete chesi, kotha pods ni create chestharu.
+
+Minus: Kotha pods vache daka app pani cheyadhu (Downtime).
+
+Rolling Update (Default): Okko pod ni delete chesthu, okko kotha pod ni create chestharu.
+
+Plus: App eppudu online lone untundi. Idi manam real-time lo eppudu vaade strategy.
+
+2. Deployment Updates (The "Update")
+Nuvvu image version marchali ante rendu paddhathulu unnayi:
+
+kubectl apply: YAML file lo image name marchi apply cheyadam. (Idi best practice).
+
+kubectl set image: Direct ga terminal nundi image version marchadam.
+
+kubectl set image deployment/myapp-deploy nginx=nginx:1.17
+
+3. Rollback (The "Undo")
+Kotha version lo bugs unte, ventane "Undo" kottochu.
+
+Status chudali ante: kubectl rollout status deployment/myapp-deploy
+
+History chudali ante: kubectl rollout history deployment/myapp-deploy
+
+Rollback kottali ante: kubectl rollout undo deployment/myapp-deploy
+
+4. Under the Hood (What happens?)
+Nuvvu rollout chesetappudu Kubernetes em chesthundante:
+
+Oka kotha Replica Set ni create chestundi.
+
+Patha Replica Set lo pods ni thaggi-sthu (Scale down), kotha Replica Set lo pods ni penchu-thundi (Scale up).
+
+Nuvvu kubectl get rs (Replica Sets) kodithe, patha RS version inka akkade untundi kaani andulo pods 0 untayi. Ade neeku rollback ki help avthundi.
+
+Cognizant Trainee Tip:
+Interview lo "How do you ensure zero downtime during an update?" ani adugutharu.
+
+Answer: "By using the Rolling Update strategy in Deployment. It replaces old pods with new ones incrementally, ensuring that at least some pods are always available to serve traffic."
+
+Scratch nundi Lab (Try this!):
+Step 1: Deployment create cheyi
+
+Bash
+kubectl create deployment hello-deploy --image=nginx:1.16 --replicas=3
+Step 2: Update image to 1.17
+
+Bash
+kubectl set image deployment/hello-deploy nginx=nginx:1.17
+Step 3: Rollout status check cheyi
+
+Bash
+kubectl rollout status deployment/hello-deploy
+Step 4: Oops! Error vachindi anuko, Rollback cheyi
+
+Bash
+kubectl rollout undo deployment/hello-deploy
+
+
+
+
+
+
+
+
+Feature,Docker Instruction,Kubernetes YAML Field
+Executable,ENTRYPOINT,command
+Default Arguments,CMD,args
+
+
+
+
+
+
+
+Sare Shivateja! Environment Variables (Env Vars) aneivi mana application ki kavalsina "Configuration" (ante Database URL, Port number, leda API Keys) ni Pod lopali pampadaniki vaade oka bridge lantidi.
+
+
+
+
+
+Sare Shivateja! ConfigMaps aneivi mana application settings ni (like background color, database URL, log levels) separate ga manage cheyadaniki vaade oka central store lanti.
+
+
+
+
+1. ConfigMap ni create cheyadam (The Commands)
+Nuvvu rendu dharullo ConfigMap ni create cheyochu:
+
+Imperative (Direct ga command tho):
+
+Bash
+kubectl create configmap app-config --from-literal=APP_COLOR=blue --from-literal=APP_MODE=prod
+Declarative (YAML file tho):
+vi app-config.yaml create chesi idi paste chey:
+
+YAML
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: app-config
+data:
+  APP_COLOR: blue
+  APP_MODE: prod
+2. ConfigMap ni Pod loki ela pampali? (Injection)
+Mana daggara app-config ane ConfigMap ready ga undi. Ippudu deenni Pod ki link cheyali.
+
+Option A: Anni variables ni okesari pampali ante (envFrom)
+Idi chala simple method. ConfigMap lo unna anni key-value pairs automatic ga environment variables ayipothayi.
+
+YAML
+spec:
+  containers:
+  - name: my-app
+    image: my-webapp-image
+    envFrom:                # <--- Entire ConfigMap injection
+    - configMapRef:
+        name: app-config
+Option B: Kevalam oka specific variable ni matrame pampali ante (valueFrom)
+
+YAML
+spec:
+  containers:
+  - name: my-app
+    image: my-webapp-image
+    env:
+    - name: MY_COLOR       # Pod lopala vunde peru
+      valueFrom:
+        configMapKeyRef:
+          name: app-config
+          key: APP_COLOR   # ConfigMap lo unna peru
+3. How to check ConfigMaps?
+List ConfigMaps: kubectl get cm
+See Data: kubectl describe cm app-config (Indulo nuvvu petti values anni kanipisthayi).
+
+
+
+Sare Shivateja! Secrets aneivi Kubernetes lo ConfigMaps ki "Big Brother" lantivi. ConfigMaps lo manam normal data (plain text) ni dachithe, Secrets lo manam Sensitive Data (ante passwords, API tokens, certificates) ni dachutham.
+
+
+
+
+Nuvvu app-secret ane peruతో ఒక పాస్ వర్డ్ ని దాచాలి అనుకుంటే:
+
+Imperative Way (Fast & Easy):
+
+Bash
+kubectl create secret generic app-secret --from-literal=DB_Password=shiva@123
+Declarative Way (YAML - Professional):
+Mundu nuvvu nee password ni encode cheyali:
+
+Bash
+echo -n 'shiva@123' | base64
+# Output: c2hpdmFAMTIz
+Ippudu secret.yaml create chey:
+
+YAML
+apiVersion: v1
+kind: Secret
+metadata:
+  name: app-secret
+type: Opaque
+data:
+  DB_Password: c2hpdmFAMTIz   # <--- Encoded value ikkada pettali
+2. Pod loki Secrets ni ela pampali?
+ConfigMaps laage, deenni kuda rendu dharullo pampochu:
+
+Option A: Environment Variables ga (envFrom)
+App ki passwords env vars laage anduthayi.
+
+YAML
+spec:
+  containers:
+  - name: my-app
+    image: my-app-image
+    envFrom:
+    - secretRef:
+        name: app-secret
+Option B: Volume Mount ga (More Secure)
+Ikkada prathi secret key oka file laaga Pod ki anduthundi.
+
+YAML
+spec:
+  containers:
+  - name: my-app
+    image: my-app-image
+    volumeMounts:
+    - name: secret-volume
+      mountPath: "/etc/secrets"
+      readOnly: true
+  volumes:
+  - name: secret-volume
+    secret:
+      secretName: app-secret.
+
+Pod definition file lo containers anedi oka Array (Gurtunda? dash - tho modhalu avthundi). Anduke manam enni containers ayina add cheyochu.
+
+YAML
+apiVersion: v1
+kind: Pod
+metadata:
+  name: multi-container-pod
+spec:
+  containers:
+  - name: main-app          # Container 1
+    image: my-main-app
+  - name: log-helper        # Container 2 (Sidecar)
+    image: fluentd
+4. Realistic Example: Logging Sidecar
+Imagine, nee main-app logs generate chesthundhi. Kani vatini "Cloud" ki pampalante inko extra software kavali.
+
+Nuvvu main-app code ni touch cheyakunda, oka Logging Sidecar (fluentd lanti image) ని అదే పాడ్ లో పెడతావు.
+
+అది logs ని రీడ్ చేసి సర్వర్ కి పంపిస్తుంది.
+
+
+Feature,Co-located,Init Containers,Sidecar Containers
+Startup Order,No guaranteed order,Runs BEFORE main app,Starts before/with app
+Running Duration,Life of the Pod,Stops after task is done,Life of the Pod
+YAML Section,containers,initContainers,initContainers (with sidecar type)
+Primary Use,Tight coupling,Pre-setup/Waiting,Logging/Monitoring..
+
+
+
+
+Endukante, Self-healing ante kevalam "Pod crash ayithe restart cheyadam" mathrame kadu. Pod running lo unna, app lopala freeze ayipovachu (Deadlock). Appudu ReplicaSet ki emi teliyadu. Akkade ee Probes avasaram padathayi.
+
+
+
+1. Readiness Probe (Are you ready for customers?)
+Oka Pod create ayyaka, andulo unna application (e.g., Java/Spring Boot) start avvadaniki konni seconds time paduthundi.
+
+Problem: App inka start avvaka mundhe Kubernetes traffic ni pampithe, users ki "500 Error" vasthundi.
+
+Solution: Readiness Probe check chesthundhi. App full-ga ready ayyaka (Status 200 vachaka) mathrame traffic ni allow chesthundhi.
+
+
+
+Konni sarlu app "Running" state lo untundi, kani lopala "Hanging" (Freeze) ayipothundi.
+
+Problem: Container rann avthundi కాబట్టి ReplicaSet restart cheyadu. Kani app evariki respond avvadu.
+
+Solution: Liveness Probe periodically app ni "Gilli" (Ping chesi) chusthundhi. App respond avvakapothe, Kubernetes ventane aa Pod ni Restart chesthundhi.
+
+
+
+
+
+
+1. HPA ela pani chesthundhi? (The Logic)
+HPA simple formula ni follow avthundi:
+
+Metrics Check: Prathi 15 seconds ki oka sari Metrics Server ni aduguthundi (CPU/RAM entha undi ani).
+
+Calculation: Nuvvu pettina threshold (e.g., 50%) kante usage ekkuva unte, kotha pods ni add chesthundhi.
+
+Scaling: Max limit (e.g., 10 pods) reach ayye varaku scale chesthundhi. Traffic thagga gaane, malli Min limit (e.g., 1 pod) ki scale down chesthundhi.
+
+
+
+
+HPA correct ga pani cheyali ante nee Pod YAML lo ee rendu undali:
+
+Metrics Server: Idi lekapothe HPA ki CPU usage teliyadu.
+
+Resources (Requests): Pod specification lo resources.requests.cpu kachitanga undali. Request lekapothe HPA 50% percentage ni calculate cheyaledu.
+
+
+
+
+
+Scratch nundi Lab (Quick Test):
+Step 1: Metric Server undo ledo chudu
+
+Bash
+kubectl top nodes
+(Error vasthe, metrics server install cheyali).
+
+Step 2: Autoscale command kottu
+
+Bash
+kubectl autoscale deployment my-web-app --cpu-percent=50 --min=2 --max=5
+Step 3: Stress Test (Optional)
+Nuvvu manual ga load penchithe, kubectl get pods kottinappudu automatic ga kotha pods putti Running loki ravadam nuvvu chudagala.
+
+
+
+
+
+Idi oka patient ki operation chesetappudu hospital bed marchakunda, unna bed lone treatment icchinattu అన్నమాట!
+
+1. Default vs In-Place (The Difference)
+Default Behavior: Nuvvu YAML lo CPU 0.5 nundi 1.0 కి మార్చగానే, Kubernetes పాత Pod ని చంపేసి (Terminate), కొత్త Pod ని క్రియేట్ చేస్తుంది.
+
+In-Place Resize: Pod ranning లోనే ఉంటుంది, కానీ దానికి అలాట్ అయిన CPU/Memory వాల్యూస్ మాత్రం మారుతాయి. No Downtime!
+
+2. Resize Policy (Nee Control)
+Ee feature vaadetappudu nuvvu prathi resource (CPU/Memory) ki oka policy set cheyochu.
+
+restartPolicy: NotRequired: CPU penchinappudu pod restart avvadu.
+
+restartPolicy: RestartContainer: Memory penchinappudu kachitanga container restart avvali (Konni apps ki idi thappadu).
+
+YAML
+spec:
+  containers:
+  - name: my-app
+    image: nginx
+    resizePolicy:
+    - resourceName: cpu
+      restartPolicy: NotRequired
+    - resourceName: memory
+      restartPolicy: RestartContainer
+3. Current Status (Feature Flag)
+Instructor cheppinattu, idi ippudu Alpha/Beta stage lo undi. Ante idi automatic ga pani cheyadhu.
+
+Deenni vaadaali ante API Server lo InPlacePodVerticalScaling అనే Feature Gate ని true చేయాలి.
+
+Update: Kubernetes v1.32+ lo idi inka improve ayindi, future lo idi standard ayipothundi.
+
+4. Mukhyaమైన Limitations (Gurtu pettuko!)
+Idi anni chotla pani cheyadhu Shivateja:
+
+Resources: Kevalam CPU mariyu Memory ki mathrame idi panichesthundhi.
+
+Containers: Init containers mariyu Ephemeral containers ni resize cheyalemu.
+
+Windows: Windows pods ki idi inka support ledu.
+
+Lowering Memory: Container already vaaduthunna memory kante thakkuva limit ni set cheyalemu (adi feasible ayye varaku Progress lone untundi).
+
+Cognizant Trainee Tip:
+Real-time projects lo StatefulSets (Databases) vaadetappudu idi chala help avthundi. DB pods ni restart chesthe connectivity issues osthayi, kaani ee In-Place Resize valla DB run avthunappude daaniki ekkuva RAM ivvachu.
+
+Scratch nundi Lab (Theory Check):
+Mundu cluster lo In-Place scaling enable ayyi undo ledo kube-apiserver config lo chudu.
+
+Oka Pod YAML lo resizePolicy petti create chey.
+
+Pod running lo unnappudu kubectl patch pod <name> kotti CPU request ni marchu.
+
+kubectl describe pod kotti Events lo "Resized" ani vasthe, nee pod restart avvakundaనే scale ayyinattu!.
+
+
+
+
+
+Sare Shivateja! Cluster maintenance (ante OS upgrades, patches, or hardware repairs) chesetappudu Nodes ni ela handle cheyalo ee lecture lo chala baga cover ayyindi.
+
+
+
+1. Drain (The Safe Exit 🚪)
+Nuvvu oka node ni upgrade cheyali anukunte, mundu andulo unna pods ni vere nodes ki pampali.
+
+Em chesthundhi: Node ni "Unschedulable" ga mark chesthundhi mariyu unna Pods anni gracefully terminate ayyi vere nodes meeda create ayyela chesthundhi.
+
+Command: kubectl drain <node-name>
+
+Note: Okavela Pods standalone (ReplicaSet lekunda) unte, avi delete ayipothayi. Avi malli raavu. Always use Deployments!
+
+2. Cordon (The Stop Sign 🛑)
+Idi kevalam "Kotha vallu raakudadhu" ani chepthundi.
+
+Em chesthundhi: Node ni unschedulable ga mark chesthundhi. Kaani, already rann avthunna pods ni emi disturb cheyadhu. Avi akkade untayi.
+
+Command: kubectl cordon <node-name>
+
+Usage: Node meeda load ekkuva unnappudu kotha pods raakunda aapadaniki deenni vaadatharu.
+
+
+
+
+
+Nuvvu oka node ni upgrade cheyali anukunte, mundu andulo unna pods ni vere nodes ki pampali.
+
+Em chesthundhi: Node ni "Unschedulable" ga mark chesthundhi mariyu unna Pods anni gracefully terminate ayyi vere nodes meeda create ayyela chesthundhi.
+
+Command: kubectl drain <node-name>
+
+Note: Okavela Pods standalone (ReplicaSet lekunda) unte, avi delete ayipothayi. Avi malli raavu. Always use Deployments!.
+
+
+
+
+
+
+
+Idi kevalam "Kotha vallu raakudadhu" ani chepthundi.
+
+Em chesthundhi: Node ni unschedulable ga mark chesthundhi. Kaani, already rann avthunna pods ni emi disturb cheyadhu. Avi akkade untayi.
+
+Command: kubectl cordon <node-name>
+
+Usage: Node meeda load ekkuva unnappudu kotha pods raakunda aapadaniki deenni vaadatharu.
+
+
+
+
+3. Uncordon (The Welcome Back 🤝)
+Maintenance ayipoyaka, node malli pods ni receive chesukovali ante deenni vaadali.
+
+Em chesthundhi: Node ni malli "Schedulable" ga marusthundhi.
+
+Command: kubectl uncordon <node-name>
+
+Important: Node online loki vachina ventane patha pods anni automatic ga venakki raavu. Kothaga create ayye pods mathrame ikkadiki raagalaవు.
+
+
+
+
+
+
+Scratch nundi Lab (Try this in your Terminal):
+Imagine node01 ni nuvvu patch cheyali.
+
+Step 1: Drain the node
+
+Bash
+kubectl drain node01 --ignore-daemonsets
+(Note: --ignore-daemonsets kachitanga vaadaali, endukante DaemonSets ni manam drain cheyalemu, avi prathi node meeda undalsindhe).
+
+Step 2: Check status
+
+Bash
+kubectl get nodes
+Ikkada node01 status Ready,SchedulingDisabled ani kanipisthundi.
+
+Step 3: Uncordon after maintenance
+
+Bash
+kubectl uncordon node01
+Ippudu node status malli Ready loki vasthundi.
+
+
+
+
+1. Version Number Structure (x.y.z)
+Oka version number (e.g., v1.33.2) lo moodu భాగాలు ఉంటాయి:
+
+Major (1): Idhi chala years ki oka sari maruthundi. Kubernetes ippatidaka v1 lone undi.
+
+Minor (33): Idi prathi 4 nelala ki (4 months) okasari release avthundi. Kotha features, functionalities anni indulo osthayi.
+
+Patch (2): Ivi chala frequent ga osthayi. Kevalam bug fixes mariyu security patches kosam ivi release chestharu.
+
+2. Feature Lifecycle (Alpha -> Beta -> Stable)
+Kubernetes lo kotha feature direct ga main version loki raadu. Adi ee stages ni datali:
+
+Alpha: Initial stage. Bugs undochu, default ga disable ayyi untundi.
+
+Beta: Code baga test ayyi untundi. Default ga enable ayyi untundi, kani inka "testing" phase lone unnattu lekka.
+
+Stable (GA): Purthiga ready ayina version. Manam production lo vaadedi ide.
+
+
+
+
+1. Version Skew Policy (ఎవరు ఏ వెర్షన్ లో ఉండొచ్చు?)
+Kubernetes లో అన్ని కాంపోనెంట్స్ ఒకే వెర్షన్ లో ఉండాల్సిన అవసరం లేదు, కానీ ఒక రూల్ ఉంది: ఏ కాంపోనెంట్ కూడా API Server కంటే ఎక్కువ వెర్షన్ లో ఉండకూడదు.
+
+kube-apiserver: ఇది 'X' వెర్షన్ లో ఉంటే...
+
+controller-manager, scheduler: X లేదా X-1 (ఒక వెర్షన్ తక్కువ) ఉండొచ్చు.
+
+kubelet, kube-proxy: X లేదా X-2 (రెండు వెర్షన్ల తక్కువ) వరకు ఉండొచ్చు.
+
+kubectl: ఇది మాత్రం API Server కంటే ఒక వెర్షన్ ఎక్కువ (X+1) లేదా తక్కువ (X-1) ఉండొచ్చు.
+
+
+
+Kubeadm anedi oka official tool. Idi Kubernetes cluster ni set up cheyadaniki mariyu manage cheyadaniki use avthundi. Simple ga cheppalante, idi cluster building process ni automate chesthundhi.
+
+
+
+
+Okka maatalo cheppalante—Cluster ante oka team. Nuvvu oka pedda software rann cheyali anukunte, adi okka computer (Server) meeda load ekkuva ayipovachu. Anduke, chala computers ni okkati ga kalipi, avi anni okate "Pedda Computer" laaga pani cheseలా చేసే దాన్నే Cluster అంటారు.
+
+
+మనం క్లస్టర్ లో క్రియేట్ చేసే Pods, Deployments, Services అన్నింటికీ YAML ఫైల్స్ ఉంటాయి కదా? అవే మన మొదటి బ్యాకప్ ఆప్షన్.
+
+Best Practice: అన్ని YAML ఫైల్స్ ని Git (GitHub/GitLab) లో సేవ్ చేసుకోవాలి.
+
+ఒకవేళ ఫైల్స్ లేకపోతే? ఒకవేళ ఎవరైనా మాన్యువల్ గా (Imperative గా) ఆబ్జెక్ట్స్ క్రియేట్ చేస్తే, మనం API Server ని అడిగి ఆ డేటాని తీసుకోవచ్చు:
+
+Bash
+kubectl get all --all-namespaces -o yaml > all-deployments-backup.yaml
+Tools: వీటిని ఆటోమేట్ చేయడానికి Velero లాంటి టూల్స్ వాడతారు.
+
+
+
+
+
+nfrastructure Security (కోట పునాది)
+ముందుగా నీ క్లస్టర్ రన్ అవుతున్న ఫిజికల్ సర్వర్లు లేదా వర్చువల్ మెషీన్లని సెక్యూర్ చేయాలి.
+
+SSH Keys: పాస్ వర్డ్స్ వాడకుండా కేవలం SSH కీస్ మాత్రమే వాడాలి.
+
+Root Access: రూట్ యూజర్ కి డైరెక్ట్ యాక్సెస్ ఉండకూడదు.
+
+కోట పునాది బలహీనంగా ఉంటే, పైన ఏం కట్టినా కూలిపోతుంది.
+
+
+
+క్లస్టర్ లోపల రకరకాల కాంపోనెంట్స్ (API Server, Scheduler, etcd, Kubelet) ఒకదానితో ఒకటి మాట్లాడుకుంటూ ఉంటాయి. ఈ మాటలు ఎవరూ మధ్యలో వినకుండా ఉండటానికి ప్రతి కమ్యూనికేషన్ TLS (Transport Layer Security) తో ఎన్క్రిప్ట్ చేయబడి ఉంటుంది.
+
+దీనికోసం క్లస్టర్ లో చాలా సర్టిఫికేట్లు వాడతాము. వీటి గురించి మనం నెక్స్ట్ లెెక్చర్స్ లో క్లియర్ గా నేర్చుకుంటాం.
+
+
+
+
+Network Policies (లోపలి గోడలు 🧱)
+బై డిఫాల్ట్ గా, క్లస్టర్ లో ఉన్న ఏ పాడ్ అయినా ఇంకో పాడ్ తో మాట్లాడుకోవచ్చు. కానీ సెక్యూరిటీ పరంగా ఇది డేంజర్.
+
+Network Policies వాడి మనం ట్రాఫిక్ ని కంట్రోల్ చేయొచ్చు.
+
+ఉదాహరణ: కేవలం "Frontend" పాడ్ మాత్రమే "Backend" పాడ్ తో మాట్లాడాలి, నేరుగా "Database" తో మాట్లాడకూడదు అని రూల్స్ పెట్టొచ్చు.
+
+
+
+
+Static Password/Token Files (Basic): ఒక సింపుల్ CSV ఫైల్ లో యూజర్ నేమ్, పాస్ వర్డ్ రాసి API Server కి ఇవ్వడం.
+
+గమనిక: ఇది అస్సలు సెక్యూర్ కాదు (Plain text లో ఉంటుంది కాబట్టి). కేవలం నేర్చుకోవడానికి మాత్రమే ఇది వాడుతాం.
+
+X.509 Certificates: ఇది చాలా పాపులర్ మరియు సెక్యూర్ పద్ధతి. ప్రతి యూజర్ కి ఒక డిజిటల్ సర్టిఫికేట్ ఉంటుంది.
+
+Third-party Providers: LDAP, Google, లేదా GitHub లాంటి ఎక్స్టర్నల్ సర్వీసుల ద్వారా లాగిన్ అవ్వడం.
+
+
+
+
+
+1. TLS అంటే ఏమిటి? (The Secure Tunnel)
+సాధారణంగా ఇద్దరు వ్యక్తులు ఇంటర్నెట్ లో మాట్లాడుకుంటున్నప్పుడు, మధ్యలో ఎవరైనా ఆ మాటలని వినే అవకాశం ఉంటుంది.
+
+TLS ఏం చేస్తుందంటే, ఆ మాటలని ఎవరికీ అర్థం కాని కోడ్ లాగా మార్చేస్తుంది (Encryption).
+
+దీనివల్ల సమాచారం చాలా సేఫ్ గా ఒక చోటు నుండి ఇంకో చోటుకి వెళ్తుంది.
+
+
+
+
+KubeConfig అనేది నీ జేబులో ఉండే ఒక "మాస్టర్ కీ" (Master Key) లాంటిది. నీ దగ్గర ఎన్ని క్లస్టర్లు ఉన్నా (Dev, Test, Prod), వాటన్నింటినీ నీ లాప్‌టాప్ నుండే కంట్రోల్ చేయడానికి ఈ ఒక్క YAML ఫైల్ సరిపోతుంది.
+
+
+
+
+
+KubeConfig లోని 3 ముఖ్యమైన భాగాలు
+దీన్ని అర్థం చేసుకోవడం చాలా ఈజీ:
+
+Clusters: నువ్వు యాక్సెస్ చేయాలనుకుంటున్న క్లస్టర్లు (ఉదా: Minikube, Production, Google Cloud). ఇక్కడ సర్వర్ IP మరియు CA సర్టిఫికెట్ ఉంటాయి.
+
+Users: ఏ యూజర్ గా నువ్వు లోపలికి వెళ్తున్నావు? (ఉదా: Admin, Developer). ఇక్కడ నీ వ్యక్తిగత సర్టిఫికెట్ మరియు కీ ఉంటాయి.
+
+Contexts: ఇది "పెళ్ళి చేసే పెద్ద మనిషి" లాంటిది. ఏ యూజర్ ఏ క్లస్టర్ కి వెళ్ళాలో ఇది డిసైడ్ చేస్తుంది. (ఉదా: "Admin" యూజర్ "Production" క్లస్టర్ కి వెళ్ళాలి).
+
+
+
+
+Serving Certificate: etcd ఒక సర్వర్ లాగా పనిచేస్తుంది కాబట్టి, API Server కి తనని తాను నిరూపించుకోవడానికి ఇది కావాలి.
+
+Peer Certificate: ఒకవేళ నీకు ఒకటి కంటే ఎక్కువ etcd నోడ్స్ ఉంటే (High Availability), ఆ నోడ్స్ ఒకదానితో ఒకటి మాట్లాడుకోవడానికి ఈ సర్టిఫికేట్ వాడతాము.
+
+Client Certificate (for API Server): API Server, etcd లో డేటా రాయాలన్నా లేదా చదవాలన్నా, అది ఒక క్లైంట్ లాగా తన గుర్తింపును చూపించాలి.
+
+
+
+
+4. Webhook (బయటి మనుషుల సహాయం)
+ఒకవేళ నువ్వు పర్మిషన్స్ ని కుబెర్నెటీస్ లో కాకుండా, బయట ఉన్న ఏదైనా సర్వీస్ (ఉదాహరణకి Open Policy Agent - OPA) ద్వారా కంట్రోల్ చేయాలనుకుంటే దీన్ని వాడతాం.
+
+
+
+
+
+
+నువ్వు పైన చెప్పినట్టు చాలా డ్రైవర్లు ఉన్నాయి. కొన్ని ముఖ్యమైనవి ఇక్కడ చూద్దాం:
+
+Azure File Storage: క్లౌడ్ లోని ఫైల్ షేర్ ని వాడుకోవడానికి.
+
+RexRay: ఇది చాలా పవర్ ఫుల్! ఇది AWS (EBS, S3), Google Cloud, మరియు OpenStack వంటి వాటితో కనెక్ట్ అవ్వగలదు.
+
+Portworx / GlusterFS: ఇవి కంటైనర్ల కోసం ప్రత్యేకంగా డిజైన్ చేయబడిన స్టోరేజ్ సొల్యూషన్స్.
+
+
+
+
+
+కుబెర్నెటీస్ లో మనం వీటిని CSI (Container Storage Interface) అంటాం. డాకర్ లో వాల్యూమ్ డ్రైవర్లు ఎలాగో, కుబెర్నెటీస్ లో CSI డ్రైవర్లు అలాగన్నమాట. Azure AKS లో అయితే azure-disk లేదా azure-file అనే డ్రైవర్లను మనం ఎక్కువగా వాడుతుంటాం.
+
+
+
+
+CRI (Container Runtime Interface): Docker/Containerd తో మాట్లాడటానికి.
+
+CNI (Container Networking Interface): Flannel/Calico తో నెట్‌వర్కింగ్ సెటప్ చేయడానికి.
+
+CSI (Container Storage Interface): NetApp/Azure/AWS స్టోరేజ్ తో మాట్లాడటానికి.
+
+. Persistent Volume అంటే ఏమిటి? (The Storage Pool)
+ఒక పెద్ద నీళ్ళ ట్యాంక్ లాగా ఊహించుకో. అడ్మినిస్ట్రేటర్ క్లస్టర్ మొత్తానికి సరిపడా ఒక పెద్ద స్టోరేజ్ పూల్ ని క్రియేట్ చేస్తాడు. యూజర్లు (డెవలపర్లు) తమకు కావాల్సినంత భాగాన్ని అందులో నుండి తీసుకుంటారు.
+
+PV: ఇది అడ్మినిస్ట్రేటర్ క్రియేట్ చేసే స్టోరేజ్ రిసోర్స్.
+
+PVC: ఇది డెవలపర్ తన పాడ్ కోసం అడిగే రిక్వెస్ట్ (దీని గురించి నెక్స్ట్ లెక్చర్ లో నేర్చుకుంటాం).
+
+PV ని ఎలా క్రియేట్ చేస్తారు? (The YAML)
+నువ్వు చెప్పినట్టు, PV డెఫినిషన్ లో కొన్ని ముఖ్యమైన ఫీల్డ్స్ ఉంటాయి:
+
+Capacity: ఎంత స్టోరేజ్ కావాలి? (ఉదా: 1Gi, 10Gi).
+
+Access Modes: నోడ్స్ ఆ వాల్యూమ్ ని ఎలా వాడుకోవాలి?
+
+ReadWriteOnce (RWO): ఒక్క నోడ్ మాత్రమే రీడ్/రైట్ చేయగలదు.
+
+ReadOnlyMany (ROX): చాలా నోడ్స్ కేవలం రీడ్ మాత్రమే చేయగలవు.
+
+ReadWriteMany (RWX): చాలా నోడ్స్ ఒకేసారి రీడ్/రైట్ చేయగలవు (NFS లాంటి వాటికి ఇది వాడతాం).
+
+Storage Provider: డేటా ఎక్కడ సేవ్ అవ్వాలి? (HostPath, AzureDisk, AWS EBS, NFS).
+
+
+
+
+Storage Class వల్ల కలిగే అతిపెద్ద లాభం Dynamic Provisioning.
+
+నువ్వు ఒక PVC క్రియేట్ చేయగానే, దానికి తగ్గ PV క్లస్టర్ లో లేకపోయినా, Storage Class వెంటనే క్లౌడ్ ప్రోవైడర్ (Azure/GCP/AWS) తో మాట్లాడి కొత్త డిస్క్ ని క్రియేట్ చేస్తుంది.
+
+ఆ తర్వాత ఆటోమేటిక్ గా ఒక PV ని క్రియేట్ చేసి నీ PVC కి బైండ్ చేస్తుంది. నువ్వు మాన్యువల్ గా PV క్రియేట్ చేయాల్సిన అవసరం లేదు.
+
+
+
+ఎందుకు దీనికి "Class" అని పేరు పెట్టారు?
+పేరులోనే ఉన్నట్టు, మనం వేర్వేరు క్వాలిటీ స్టోరేజ్ లని క్లాసులుగా విభజించవచ్చు:
+
+Silver Class: మామూలు HDD డిస్క్ (తక్కువ ఖర్చు).
+
+Gold Class: వేగంగా ఉండే SSD డిస్క్.
+
+Platinum Class: SSD డిస్క్ తో పాటు బ్యాకప్ (Replication) కూడా ఉండేలా.
+
+డెవలపర్ తన అప్లికేషన్ కి ఎంత స్పీడ్ కావాలో దాన్ని బట్టి ఆ క్లాస్ ని ఎంచుకుంటాడు.
+
+
+
+
+
+నువ్వు ఒక WordPress సైట్ ని కుబెర్నెటీస్ లో రన్ చేయాలి అంటే... నీకు ఒక Deployment, ఒక Service, ఒక Secret, ఒక PV, మరియు ఒక PVC కావాలి.
+
+అంటే కనీసం 5 వేర్వేరు YAML ఫైల్స్ ఉండాలి.
+
+వీటిని అప్లై చేయాలన్నా, అప్‌డేట్ చేయాలన్నా, లేదా డిలీట్ చేయాలన్నా నువ్వు ప్రతి ఫైల్ ని విడివిడిగా చూసుకోవాలి.
+
+ఒకవేళ నువ్వు స్టోరేజ్ ని 20GB నుండి 100GB కి మార్చాలి అంటే, ఆ 5 ఫైల్స్ లో ఎక్కడెక్కడ మార్చాలో వెతుక్కోవాలి. ఇది చాలా టైమ్ వేస్ట్ పని.
+
+
+Helm ని "Package Manager for Kubernetes" అంటారు. మన ఫోన్ లో 'App Store' లేదా 'Play Store' ఎలాగో, కుబెర్నెటీస్ కి హెల్మ్ అలాగన్నమాట.
+
+ఇది విడివిడి ఆబ్జెక్ట్స్ ని (Pods, Services, etc.) ఒకే ఒక "Package" (దీన్నే Chart అంటారు) లాగా చూస్తుంది.
+
+నువ్వు "WordPress ని ఇన్స్టాల్ చేయి" అని హెల్మ్ కి చెబితే చాలు, అది వెనకాల ఉన్న 5-10 YAML ఫైల్స్ ని ఆటోమేటిక్ గా అప్లై చేస్తుం.
+
+
+
+
+. Helm ఇచ్చే సూపర్ పవర్స్ 🦸‍♂️
+Single Command: ఒక్క కమాండ్ తో మొత్తం అప్లికేషన్ ఇన్స్టాల్ లేదా అన్-ఇన్స్టాల్ చేయొచ్చు.
+
+Values.yaml: నీకు కావాల్సిన మార్పులు (ఉదా: పాస్ వర్డ్ మార్చడం లేదా డిస్క్ సైజ్ పెంచడం) అన్నింటినీ ఒకే ఒక ఫైల్ (values.yaml) లో చేయొచ్చు. నువ్వు ప్రతి YAML ని ఓపెన్ చేయక్కర్లేదు.
+
+Release Management: హెల్మ్ నువ్వు చేసే ప్రతి మార్పుని ట్రాక్ చేస్తుంది. ఒకవేళ కొత్త వెర్షన్ అప్‌డేట్ చేసాక ఏదైనా ప్రాబ్లం వస్తే, ఒక్క కమాండ్ తో పాత వెర్షన్ కి వెళ్ళిపోవచ్చు (Rollback).
+
+Templates: ఒకే చార్ట్ ని వాడుకుని నువ్వు Dev, Test, Prod ఎన్విరాన్మెంట్స్ కి వేర్వేరు వాల్యూస్ తో డిప్లాయ్ చేయొచ్చు.
+
+
+
+
+
+
+Helm 2 లో Tiller అనే ఒక ఎక్స్ట్రా కాంపోనెంట్ ని క్లస్టర్ లో ఇన్స్టాల్ చేయాల్సి వచ్చేది.
+
+Helm 2: నువ్వు ఇచ్చే కమాండ్స్ మొదట Tiller కి వెళ్ళేవి, అది API Server తో మాట్లాడేది. దీనివల్ల సెక్యూరిటీ ఇష్యూస్ ఉండేవి, ఎందుకంటే Tiller కి క్లస్టర్ లో ఏమైనా చేసే "God Mode" పవర్స్ ఉండేవి.
+
+Helm 3: ఇప్పుడు Tiller లేదు! Helm నేరుగా Kubernetes API తో మాట్లాడుతుంది. నువ్వు kubectl కి ఏ పర్మిషన్స్ (RBAC) సెట్ చేస్తావో, Helm కి కూడా అవే వర్తిస్తాయి. ఇది చాలా సెక్యూర్.
+
+
+
+
+
+నువ్వు ఒక చార్ట్ ని క్లస్టర్ లో ఇన్స్టాల్ చేసినప్పుడు, అది ఒక Release గా మారుతుంది.
+
+ముఖ్యమైన విషయం: ఒకే చార్ట్ ని వాడుకుని నువ్వు వేర్వేరు పేర్లతో ఎన్ని రిలీజ్ లనైనా చేయొచ్చు.
+
+ఉదాహరణకు: helm install dev-site bitnami/wordpress మరియు helm install prod-site bitnami/wordpress. ఇక్కడ చార్ట్ ఒకటే, కానీ రిలీజ్ లు రెండు వేర్వేరు.
+
+3. Helm Repository (ద సూపర్ మార్కెట్ 🛒)
+మనకి కావలసిన చార్ట్స్ అన్నీ ఒక చోట దొరుకుతాయి, దాన్నే Repository అంటారు.
+
+Artifact Hub: ఇది ప్రపంచవ్యాప్తంగా ఉన్న అన్ని హెల్మ్ రిపోజిటరీలకి ఒక సెర్చ్ ఇంజిన్ లాంటిది. ఇక్కడ నీకు Redis, Prometheus, WordPress వంటి వేల కొద్దీ చార్ట్స్ రెడీమేడ్ గా దొరుకుతాయి.
+
+4. Helm Metadata (ద డైరీ 📒)
+హెల్మ్ తను క్లస్టర్ లో ఏం చేసిందో గుర్తుపెట్టుకోవాలి కదా? ఏ రిలీజ్ ఇన్స్టాల్ చేసింది? ఏ వెర్షన్ లో ఉంది? ఇలాంటి వివరాలన్నీ Metadata రూపంలో భద్రపరుస్తుంది.
+
+స్మార్ట్ ఐడియా: హెల్మ్ ఈ డేటాని నీ కంప్యూటర్ లో కాకుండా, నేరుగా కుబెర్నెటీస్ క్లస్టర్ లోనే Secrets రూపంలో దాస్తుంది. దీనివల్ల నీ టీమ్ లో ఎవరు లాగిన్ అయినా హెల్మ్ హిస్టరీని చూడగలరు.
+
+
+
+
+1. Helm Chart (ద రెసిపీ 📖)
+ఒక అప్లికేషన్ కి కావలసిన అన్ని YAML ఫైల్స్ (Deployments, Services, Secrets) కలిపి ఉన్న ఒక ఫోల్డర్ ని Chart అంటాం.
+
+ఇది ఒక "వంటల పుస్తకం" (Recipe book) లాంటిది. ఇందులో అప్లికేషన్ ని ఎలా వండాలి (ఇన్స్టాల్ చేయాలి) అనే ఇన్స్ట్రక్షన్స్ ఉంటాయి.
+
+ఇందులో values.yaml అనే ఫైల్ చాలా ముఖ్యం. నీకు కావలసిన మార్పులు (ఉదా: పాస్ వర్డ్, వెర్షన్, రెప్లికాస్) అన్నింటినీ ఈ ఒక్క ఫైల్ లోనే సెట్ చేస్తావు.
+
+2. Helm Release (ద డిష్ 🍲)
+నువ్వు ఒక చార్ట్ ని క్లస్టర్ లో ఇన్స్టాల్ చేసినప్పుడు, అది ఒక Release గా మారుతుంది.
+
+ముఖ్యమైన విషయం: ఒకే చార్ట్ ని వాడుకుని నువ్వు వేర్వేరు పేర్లతో ఎన్ని రిలీజ్ లనైనా చేయొచ్చు.
+
+ఉదాహరణకు: helm install dev-site bitnami/wordpress మరియు helm install prod-site bitnami/wordpress. ఇక్కడ చార్ట్ ఒకటే, కానీ రిలీజ్ లు రెండు వేర్వేరు.
+
+3. Helm Repository (ద సూపర్ మార్కెట్ 🛒)
+మనకి కావలసిన చార్ట్స్ అన్నీ ఒక చోట దొరుకుతాయి, దాన్నే Repository అంటారు.
+
+Artifact Hub: ఇది ప్రపంచవ్యాప్తంగా ఉన్న అన్ని హెల్మ్ రిపోజిటరీలకి ఒక సెర్చ్ ఇంజిన్ లాంటిది. ఇక్కడ నీకు Redis, Prometheus, WordPress వంటి వేల కొద్దీ చార్ట్స్ రెడీమేడ్ గా దొరుకుతాయి.
+
+4. Helm Metadata (ద డైరీ 📒)
+హెల్మ్ తను క్లస్టర్ లో ఏం చేసిందో గుర్తుపెట్టుకోవాలి కదా? ఏ రిలీజ్ ఇన్స్టాల్ చేసింది? ఏ వెర్షన్ లో ఉంది? ఇలాంటి వివరాలన్నీ Metadata రూపంలో భద్రపరుస్తుంది.
+
+స్మార్ట్ ఐడియా: హెల్మ్ ఈ డేటాని నీ కంప్యూటర్ లో కాకుండా, నేరుగా కుబెర్నెటీస్ క్లస్టర్ లోనే Secrets రూపంలో దాస్తుంది. దీనివల్ల నీ టీమ్ లో ఎవరు లాగిన్ అయినా హెల్మ్ హిస్టరీని చూడగలరు.
+
+మొత్తం ప్రాసెస్ ఒకే ఫ్రేమ్ లో:
+నువ్వు Artifact Hub లో ఒక చార్ట్ ని వెతుకుతావు.
+
+ఆ Chart ని నీ క్లస్టర్ లోకి తెచ్చి helm install చేస్తావు.
+
+అప్పుడు క్లస్టర్ లో ఒక Release క్రియేట్ అవుతుంది.
+
+హెల్మ్ ఆ రిలీజ్ వివరాలని Secrets (Metadata) లో దాస్తుంది.
+
+
+
+
+
+
+రెండు కంప్యూటర్లు (A మరియు B) ఒకే నెట్‌వర్క్ (ఉదా: 192.168.1.0) లో ఉన్నప్పుడు, అవి ఒక Switch ద్వారా మాట్లాడుకుంటాయి.
+
+దీనికి మనకి ఒక ఇంటర్ఫేస్ (Interface) కావాలి (ఉదా: eth0).
+
+ముఖ్యమైన కమాండ్: ip link (ఇంటర్ఫేస్ చూడటానికి), ip addr add (IP సెట్ చేయడానికి)
+
+
+ఒక నెట్‌వర్క్ లో ఉన్న సిస్టమ్, వేరే నెట్‌వర్క్ (ఉదా: 192.168.2.0) లో ఉన్న సిస్టమ్ తో మాట్లాడాలి అంటే మధ్యలో Router ఉండాలి.
+
+Gateway: ఇది నీ నెట్‌వర్క్ నుండి బయటి ప్రపంచానికి వెళ్ళే "తలుపు" (Door) లాంటిది.
+
+Routing Table: నీ కంప్యూటర్ కి ఏ నెట్‌వర్క్ కి ఏ దారిలో వెళ్ళాలో ఈ టేబుల్ చెప్తుంది.
+
+ముఖ్యమైన కమాండ్: ip route లేదా route (టేబుల్ చూడటానికి), ip route add 192.168.2.0/24 via 192.168.1.1 (కొత్త దారిని చూపించడానికి).
+
+
+
+
+ఇంటర్నెట్ లో కోట్లాది వెబ్‌సైట్లు ఉంటాయి. ప్రతి దానికీ ఒక రూట్ యాడ్ చేయలేం కదా? అందుకే "నాకు తెలియని ఏ నెట్‌వర్క్ కైనా సరే, ఈ రూటర్ ద్వారా వెళ్ళు" అని చెప్పడాన్నే Default Gateway అంటారు. దీన్నే 0.0.0.0 అని కూడా పిలుస్తారు.
+
+
+
+
+
+ఒకవేళ నీ హోస్ట్ కి రెండు ఇంటర్ఫేస్ లు ఉండి, అది రెండు నెట్‌వర్క్ ల మధ్య డేటాని పాస్ చేయాలి అంటే... అది బై డిఫాల్ట్ గా చేయదు (సెక్యూరిటీ కోసం).
+
+మనం దానికి పర్మిషన్ ఇవ్వాలి. ఆ సెట్టింగ్ ఇక్కడ ఉంటుంది: /proc/sys/net/ipv4/ip_forward.
+
+ఇందులో 0 ఉంటే పని చేయదు, 1 అని సెట్ చేస్తే నీ Linux మెషీన్ రూటర్ లా మారుతుంది.
+
+
+
+
+
+ip link: నెట్‌వర్క్ కార్డ్స్ (Interfaces) లిస్ట్.
+
+ip addr: ఐపీ అడ్రస్ లు చెక్ చేయడానికి.
+
+ip route: దారులు (Routing Table) చూడటానికి.
+
+cat /proc/sys/net/ipv4/ip_forward: ప్యాకెట్ ఫార్వార్డింగ్ చెక్ చేయడానికి.
+
+
+
+
+
+/etc/hosts (నీ సొంత డైరీ 📔)
+ఇది నీ కంప్యూటర్ లో ఉండే లోకల్ ఫైల్. ఇక్కడ నువ్వు ఏ ఐపీకి ఏ పేరు ఉండాలో రాసుకోవచ్చు.
+
+ముఖ్య విషయం: నీ కంప్యూటర్ ఏదైనా పేరుని వెతికేటప్పుడు, మొదట ఈ ఫైల్ లోనే చూస్తుంది.
+
+ఉదాహరణకి: 192.168.1.11  db అని ఇక్కడ రాస్తే, నువ్వు ping db కొట్టగానే అది ఆ ఐపీకి వెళ్తుంది.
+
+
+ /etc/nsswitch.conf (ఆర్డర్ నిర్ణయించేది 🚦)
+ముందు /etc/hosts చూడాలా లేక DNS సర్వర్ ని అడగాలా? అనే క్రమాన్ని ఈ ఫైల్ డిసైడ్ చేస్తుంది. సాధారణంగా ఇందులో hosts: files dns అని ఉంటుంది. అంటే మొదట ఫైల్స్, తర్వాతే DNS.
+
+
+
+
+DNS రికార్డులు (Record Types)
+సర్వర్ లో డేటా ఎలా సేవ్ అవుతుందో ఈ రకాలు గుర్తుంచుకో:
+
+A Record: పేరు నుండి IPv4 కి (e.g., web -> 192.168.1.1).
+
+AAAA Record: పేరు నుండి IPv6 కి.
+
+CNAME: ఒక పేరు నుండి ఇంకో పేరుకి (Alias). ఉదాహరణకి hungry.com ని food-delivery.com కి పాయింట్ చేయడం.
+
+
+
+
+CoreDNS అనేది గో లాంగ్వేజ్ (Go) లో రాసిన ఒక మోడ్రన్ DNS సర్వర్. ఇది Plugins మీద ఆధారపడి పనిచేస్తుంది. అంటే నీకు కావాల్సిన ఫీచర్ ని ఒక ప్లగిన్ ద్వారా యాడ్ చేసుకోవచ్చు.
+
+
+
+
+
+
+
+
+కుబెర్నెటీస్ లో CoreDNS ఎందుకు వాడతారంటే, అక్కడ Kubernetes Plugin ఉంటుంది.
+
+పాడ్స్ క్రియేట్ అయినప్పుడు వాటికి ఐపీలు మారుతుంటాయి. ఈ ప్లగిన్ కుబెర్నెటీస్ API తో కనెక్ట్ అయ్యి, ఎప్పటికప్పుడు కొత్త పాడ్ల పేర్లను, ఐపీలను అప్‌డేట్ చేస్తూ ఉంటుంది. మనం మాన్యువల్ గా /etc/hosts ని ఎడిట్ చేయాల్సిన అవసరం ఉండదు.
+
+
+
+
+
+Linux లో కొత్త నెట్‌వర్క్ నేమ్‌స్పేస్ ని క్రియేట్ చేయడానికి ip netns కమాండ్ వాడతాం.
+
+Command: ip netns add red (red అనే గదిని క్రియేట్ చేస్తుంది).
+
+చూడటానికి: ip netns exec red ip link (red నేమ్‌స్పేస్ లోపల ఏ నెట్‌వర్క్ ఇంటర్ఫేస్ లు ఉన్నాయో చూపిస్తుంది).
+
+
+
+
+రెండు గదుల మధ్య కమ్యూనికేషన్ కావాలంటే మనకి ఒక వైర్ కావాలి. దీన్నే veth pair (Virtual Ethernet) అంటారు. ఇది ఒక వైర్ కి రెండు చివరలు ఉన్నట్టు ఉంటుంది.
+
+
+
+
+
+ఒక చివరను red నేమ్‌స్పేస్ కి, ఇంకో చివరను blue నేమ్‌స్పేస్ కి అటాచ్ చేస్తాం.
+
+ఆ తర్వాత రెండింటికీ ఐపీ అడ్రస్ లు ఇస్తే, అవి ఒకదానితో ఒకటి మాట్లాడుకోగలవు.
